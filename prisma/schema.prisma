@@ -1,0 +1,180 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Category {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  code        String     @unique // Numeric code (1-999) used in smart SKU
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  materials   Material[]
+}
+
+model UnitOfMeasure {
+  id           String     @id @default(uuid())
+  name         String     @unique
+  abbreviation String     @unique // e.g. "KG", "BAG", "MTR", "PCS"
+  code         String     @unique // Numeric code (1-999) used in smart SKU
+  description  String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  materials    Material[]
+}
+
+model Material {
+  id               String               @id @default(uuid())
+  itemCode         String               @unique
+  name             String
+  category         String?              // Cached/fallback category name
+  unit             String?              // Cached/fallback unit name
+  categoryId       String?
+  unitId           String?
+  categoryRel      Category?            @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  unitRel          UnitOfMeasure?       @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  imageUrl         String?              // Path to uploaded photo
+  minStock         Float                @default(0.0)
+  currentStock     Float                @default(0.0)
+  location         String
+  description      String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  
+  materialInItems  MaterialInItem[]
+  materialOutItems MaterialOutItem[]
+  ledgerEntries    InventoryLedger[]
+
+  @@index([itemCode])
+  @@index([name])
+  @@index([currentStock])
+  @@index([categoryId])
+  @@index([unitId])
+  @@index([createdAt(sort: Desc)])
+}
+
+model MaterialInVoucher {
+  id           String           @id @default(uuid())
+  voucherNo    String           @unique
+  date         DateTime         @default(now())
+  supplierName String
+  poNumber     String?
+  deliveryNote String?
+  receivedBy   String
+  notes        String?
+  status       String           @default("COMPLETED")
+  createdAt    DateTime         @default(now())
+
+  items        MaterialInItem[]
+
+  @@index([voucherNo])
+  @@index([supplierName])
+  @@index([createdAt(sort: Desc)])
+}
+
+model MaterialInItem {
+  id         String            @id @default(uuid())
+  voucherId  String
+  materialId String
+  quantity   Float
+  unitPrice  Float?
+  notes      String?
+
+  voucher    MaterialInVoucher @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  material   Material          @relation(fields: [materialId], references: [id])
+
+  @@index([voucherId])
+  @@index([materialId])
+}
+
+model MaterialOutVoucher {
+  id            String            @id @default(uuid())
+  voucherNo     String            @unique
+  date          DateTime          @default(now())
+  projectName   String
+  siteLocation  String?           // Specific construction area / work location in job site
+  requisitionNo String
+  recipient     String
+  issuedBy      String?           // Deprecated
+  notes         String?
+  status        String            @default("COMPLETED")
+  createdAt     DateTime          @default(now())
+
+  items         MaterialOutItem[]
+
+  @@index([voucherNo])
+  @@index([projectName])
+  @@index([createdAt(sort: Desc)])
+}
+
+model MaterialOutItem {
+  id         String             @id @default(uuid())
+  voucherId  String
+  materialId String
+  quantity   Float
+  notes      String?
+
+  voucher    MaterialOutVoucher @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  material   Material           @relation(fields: [materialId], references: [id])
+
+  @@index([voucherId])
+  @@index([materialId])
+}
+
+enum Role {
+  ADMIN
+  STOREKEEPER
+  SITE_ENGINEER
+  VIEWER
+}
+
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  name              String
+  password          String
+  role              Role      @default(STOREKEEPER)
+  status            String    @default("ACTIVE") // ACTIVE, PENDING_ACTIVATION, SUSPENDED
+  avatarUrl         String?
+  resetToken        String?
+  resetTokenExpiry  DateTime?
+  activationToken   String?
+  invitedBy         String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([email])
+  @@index([resetToken])
+  @@index([activationToken])
+}
+
+enum TransactionType {
+  MATERIAL_IN
+  MATERIAL_OUT
+  ADJUSTMENT
+}
+
+model InventoryLedger {
+  id               String          @id @default(uuid())
+  timestamp        DateTime        @default(now())
+  materialId       String
+  transactionType  TransactionType
+  voucherReference String
+  quantityDelta    Float
+  balanceAfter     Float
+  operator         String
+  notes            String?
+
+  material         Material        @relation(fields: [materialId], references: [id])
+
+  @@index([materialId])
+  @@index([timestamp(sort: Desc)])
+  @@index([transactionType])
+}
