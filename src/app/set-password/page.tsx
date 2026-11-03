@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n";
+import { useAuth } from "@/components/providers/auth-provider";
 import { LanguageToggle } from "@/components/layout/language-toggle";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { toast } from "sonner";
@@ -30,6 +31,7 @@ import {
 
 function SetPasswordContent() {
   const { t, isRtl } = useI18n();
+  const { setUser } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   const token = searchParams.get("token") || "";
@@ -81,13 +83,14 @@ function SetPasswordContent() {
   const onSubmit = (data: ResetPasswordInput) => {
     startTransition(async () => {
       const res = await activateStaffAccountWithPassword(token, data.password);
-      if (res.success) {
+      if (res.success && res.user) {
+        setUser(res.user);
         setIsSuccess(true);
         toast.success(t.auth.accountActivatedSuccess);
         setTimeout(() => {
           router.push("/");
           router.refresh();
-        }, 2000);
+        }, 1500);
       } else {
         toast.error(res.error || "Failed to activate account");
       }

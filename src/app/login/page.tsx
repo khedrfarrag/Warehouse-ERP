@@ -8,6 +8,7 @@ import { loginUser } from "@/server/actions/auth";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n";
+import { useAuth } from "@/components/providers/auth-provider";
 import { LanguageToggle } from "@/components/layout/language-toggle";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -26,6 +27,7 @@ import {
 
 function LoginForm() {
   const { t, isRtl } = useI18n();
+  const { setUser, refreshUser } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const returnUrl = searchParams.get("returnUrl") || "/";
@@ -49,7 +51,8 @@ function LoginForm() {
   const onSubmit = (data: LoginInput) => {
     startTransition(async () => {
       const res = await loginUser(data);
-      if (res.success) {
+      if (res.success && res.user) {
+        setUser(res.user);
         toast.success(
           isRtl
             ? `مرحباً بعودتك، ${res.user?.name || ""}`

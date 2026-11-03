@@ -1,13 +1,14 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useTransition } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import { getSessionUser, logoutUser } from "@/server/actions/auth";
 import { AuthSessionPayload } from "@/lib/auth";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 
 interface AuthContextType {
   user: AuthSessionPayload | null;
   isLoading: boolean;
+  setUser: (user: AuthSessionPayload | null) => void;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -15,6 +16,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   isLoading: true,
+  setUser: () => {},
   logout: async () => {},
   refreshUser: async () => {},
 });
@@ -23,6 +25,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthSessionPayload | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
 
   const fetchUser = async () => {
     try {
@@ -39,9 +42,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Re-fetch on initial mount and whenever pathname changes
   useEffect(() => {
     fetchUser();
-  }, []);
+  }, [pathname]);
 
   const logout = async () => {
     await logoutUser();
@@ -55,6 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         isLoading,
+        setUser,
         logout,
         refreshUser: fetchUser,
       }}
@@ -67,4 +72,3 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export function useAuth() {
   return useContext(AuthContext);
 }
-
