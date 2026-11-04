@@ -14,6 +14,7 @@ import {
   Eye,
   Loader2,
   KeyRound,
+  Mail,
 } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
 import { LanguageToggle } from "./language-toggle";
@@ -21,6 +22,7 @@ import { MobileNav } from "./mobile-nav";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/components/providers/auth-provider";
 import { ChangePasswordModal } from "@/components/modals/change-password-modal";
+import { ForgotPasswordModal } from "@/components/modals/forgot-password-modal";
 import Link from "next/link";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
@@ -30,6 +32,7 @@ export function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { t, direction } = useI18n();
@@ -229,6 +232,23 @@ export function Header() {
                       <span>{t.auth.changePassword}</span>
                     </button>
 
+                    {/* Forgot / Reset Password Action */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDropdownOpen(false);
+                        setForgotPasswordOpen(true);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer mb-1"
+                    >
+                      <Mail className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+                      <span>
+                        {direction === "rtl"
+                          ? "استرجاع كلمة المرور (إرسال بالبريد)"
+                          : "Forgot Password (Send via Email)"}
+                      </span>
+                    </button>
+
                     {/* Sign Out Action */}
                     <button
                       type="button"
@@ -271,6 +291,13 @@ export function Header() {
       <ChangePasswordModal
         isOpen={changePasswordOpen}
         onClose={() => setChangePasswordOpen(false)}
+      />
+
+      {/* Forgot / Reset Password Modal */}
+      <ForgotPasswordModal
+        isOpen={forgotPasswordOpen}
+        onClose={() => setForgotPasswordOpen(false)}
+        defaultEmail={currentUser?.email || ""}
       />
 
       {/* Mobile Drawer */}
