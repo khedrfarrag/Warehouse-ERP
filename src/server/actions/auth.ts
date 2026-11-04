@@ -15,7 +15,19 @@ import { revalidatePath } from "next/cache";
 import { sendPasswordResetEmail, sendStaffActivationEmail } from "@/lib/email";
 import crypto from "crypto";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+function getAppUrl(): string {
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+  }
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  return "http://localhost:3000";
+}
+
 
 /**
  * Automatically ensures default administrative & warehouse accounts exist in the database.
@@ -220,11 +232,10 @@ export async function requestPasswordReset(email: string) {
       where: { email: normalizedEmail },
     });
 
-    // If user does not exist, return success anyway to prevent email enumeration attacks
     if (!user) {
       return {
-        success: true,
-        message: "If an account exists with this email, a reset link has been dispatched.",
+        success: false,
+        error: "لا يوجد حساب مسجل بهذا البريد الإلكتروني في نظام المستودعات (No account found with this email).",
       };
     }
 
@@ -236,7 +247,7 @@ export async function requestPasswordReset(email: string) {
       data: { resetToken, resetTokenExpiry },
     });
 
-    const resetUrl = `${APP_URL}/reset-password?token=${resetToken}`;
+    const resetUrl = `${getAppUrl()}/reset-password?token=${resetToken}`;
     const emailRes = await sendPasswordResetEmail({
       to: user.email,
       name: user.name,
@@ -245,11 +256,15 @@ export async function requestPasswordReset(email: string) {
 
     if (!emailRes.success) {
       console.warn("Resend email warning:", emailRes.error);
+      return {
+        success: false,
+        error: emailRes.error || "فشل إرسال رسالة الاستعادة عبر Resend",
+      };
     }
 
     return {
       success: true,
-      message: "If an account exists with this email, a reset link has been dispatched.",
+      message: "تم إرسال رابط إعادة تعيين كلمة المرور بنجاح عبر Resend إلى بريدك الإلكتروني.",
     };
   } catch (err: any) {
     console.error("requestPasswordReset error:", err);
@@ -410,7 +425,7 @@ export async function adminCreateStaffUser(data: {
     });
 
     if (data.sendInvite !== false) {
-      const activationUrl = `${APP_URL}/set-password?token=${activationToken}`;
+      const activationUrl = `${getAppUrl()}/set-password?token=${activationToken}`;
       await sendStaffActivationEmail({
         to: newUser.email,
         name: newUser.name,
@@ -516,6 +531,40 @@ export async function adminToggleUserStatus(userId: string, newStatus: "ACTIVE" 
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err.message || "Failed to update user status" };
+  }
+}
+
+/**
+ * ADMIN ONLY: Directly resets a staff member's password
+ */
+export async function adminResetStaffPassword(userId: string, newPassword: string) {
+  try {
+    const session = await getCurrentUser();
+    if (!session || session.role !== "ADMIN") {
+      return { success: false, error: "Access Denied: Administrator role required" };
+    }
+
+    if (!newPassword || newPassword.length < 6) {
+      return { success: false, error: "Password must be at least 6 characters" };
+    }
+
+    const hashedPassword = await hashPassword(newPassword);
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        password: hashedPassword,
+        status: "ACTIVE",
+        resetToken: null,
+        resetTokenExpiry: null,
+      },
+    });
+
+    revalidatePath("/users");
+    return { success: true };
+  } catch (err: any) {
+    console.error("adminResetStaffPassword error:", err);
+    return { success: false, error: err.message || "Failed to update staff password" };
   }
 }
 

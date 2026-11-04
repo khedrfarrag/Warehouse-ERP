@@ -8,6 +8,7 @@ import {
   adminCreateStaffUser,
   adminDeleteUser,
   adminToggleUserStatus,
+  adminResetStaffPassword,
 } from "@/server/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,7 @@ import {
   Warehouse,
   HardHat,
   Eye,
+  EyeOff,
   Trash2,
   Lock,
   Mail,
@@ -32,6 +34,8 @@ import {
   AlertTriangle,
   RefreshCw,
   Search,
+  KeyRound,
+  Wand2,
 } from "lucide-react";
 
 interface SystemUserItem {
@@ -64,7 +68,37 @@ export default function UsersManagementPage() {
   >("STOREKEEPER");
   const [formSendInvite, setFormSendInvite] = useState(true);
   const [formInitialPassword, setFormInitialPassword] = useState("");
+  const [showFormPassword, setShowFormPassword] = useState(false);
   const [isSubmitting, startTransition] = useTransition();
+
+  // Reset Password for Existing User Modal State
+  const [resetPasswordModalUser, setResetPasswordModalUser] = useState<SystemUserItem | null>(null);
+  const [newResetPassword, setNewResetPassword] = useState("");
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+
+  const generateRandomPassword = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%";
+    let pwd = "";
+    for (let i = 0; i < 10; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return pwd;
+  };
+
+  const handleGenerateFormPassword = () => {
+    const pwd = generateRandomPassword();
+    setFormInitialPassword(pwd);
+    setShowFormPassword(true);
+    toast.info(isRtl ? `تم توليد كلمة سر: ${pwd}` : `Generated password: ${pwd}`);
+  };
+
+  const handleGenerateResetPassword = () => {
+    const pwd = generateRandomPassword();
+    setNewResetPassword(pwd);
+    setShowResetPassword(true);
+    toast.info(isRtl ? `تم توليد كلمة سر: ${pwd}` : `Generated password: ${pwd}`);
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -88,8 +122,21 @@ export default function UsersManagementPage() {
 
   const handleCreateStaff = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formName.trim() || !formEmail.trim()) {
-      toast.error(isRtl ? "يرجى ملء جميع الحقول المطلوبة" : "Please fill in all required fields");
+    if (!formName.trim() || !formEmail.trim() || !formInitialPassword.trim()) {
+      toast.error(
+        isRtl
+          ? "يرجى كتابة الاسم والبريد الإلكتروني وتعيين كلمة المرور"
+          : "Please provide staff name, email, and password"
+      );
+      return;
+    }
+
+    if (formInitialPassword.trim().length < 6) {
+      toast.error(
+        isRtl
+          ? "كلمة المرور يجب أن لا تقل عن 6 أحرف أو أرقام"
+          : "Password must be at least 6 characters"
+      );
       return;
     }
 
@@ -99,22 +146,62 @@ export default function UsersManagementPage() {
         email: formEmail.trim(),
         role: formRole,
         sendInvite: formSendInvite,
-        initialPassword: formInitialPassword || undefined,
+        initialPassword: formInitialPassword.trim(),
       });
 
       if (res.success) {
-        toast.success(t.users.createUserSuccess);
+        toast.success(
+          isRtl
+            ? "تم إنشاء حساب الموظف وتفعيل كلمة المرور بنجاح"
+            : "Staff member created and password activated successfully"
+        );
         setIsModalOpen(false);
         setFormName("");
         setFormEmail("");
         setFormRole("STOREKEEPER");
         setFormSendInvite(true);
         setFormInitialPassword("");
+        setShowFormPassword(false);
         fetchUsers();
       } else {
         toast.error(res.error || "Failed to create staff member");
       }
     });
+  };
+
+  const handleAdminResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetPasswordModalUser) return;
+    if (!newResetPassword.trim() || newResetPassword.trim().length < 6) {
+      toast.error(
+        isRtl
+          ? "كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف"
+          : "New password must be at least 6 characters"
+      );
+      return;
+    }
+
+    setIsResettingPassword(true);
+    try {
+      const res = await adminResetStaffPassword(resetPasswordModalUser.id, newResetPassword.trim());
+      if (res.success) {
+        toast.success(
+          isRtl
+            ? `تم تغيير كلمة المرور للموظف "${resetPasswordModalUser.name}" بنجاح`
+            : `Password successfully updated for ${resetPasswordModalUser.name}`
+        );
+        setResetPasswordModalUser(null);
+        setNewResetPassword("");
+        setShowResetPassword(false);
+        fetchUsers();
+      } else {
+        toast.error(res.error || "Failed to update staff password");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update staff password");
+    } finally {
+      setIsResettingPassword(false);
+    }
   };
 
   const handleDeleteUser = async (userId: string, userName: string) => {
@@ -434,6 +521,20 @@ export default function UsersManagementPage() {
                       {/* Actions */}
                       <td className="px-4 py-3.5 text-end">
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* Reset / Set Password Direct */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setResetPasswordModalUser(item);
+                              setNewResetPassword("");
+                              setShowResetPassword(false);
+                            }}
+                            title={isRtl ? "إعادة تعيين / تغيير كلمة المرور" : "Reset / Set Password"}
+                            className="p-1.5 rounded-lg border border-sky-200 dark:border-sky-800 text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/40 transition-colors cursor-pointer"
+                          >
+                            <KeyRound className="h-3.5 w-3.5" />
+                          </button>
+
                           {/* Toggle Active / Suspended (cannot suspend self) */}
                           {!isCurrent && (
                             <button
@@ -573,6 +674,57 @@ export default function UsersManagementPage() {
                   </div>
                 </div>
 
+                {/* Password (Directly under Email) */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold uppercase text-slate-700 dark:text-slate-300">
+                      {isRtl ? "كلمة المرور لتسجيل الدخول *" : "Login Password *"}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleGenerateFormPassword}
+                      className="text-[11px] font-semibold text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Wand2 className="h-3 w-3" />
+                      <span>{isRtl ? "توليد كلمة سر" : "Generate"}</span>
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Lock
+                      className={`absolute top-3 h-4 w-4 text-slate-400 ${
+                        isRtl ? "right-3" : "left-3"
+                      }`}
+                    />
+                    <Input
+                      type={showFormPassword ? "text" : "password"}
+                      value={formInitialPassword}
+                      onChange={(e) => setFormInitialPassword(e.target.value)}
+                      placeholder={isRtl ? "كلمة المرور (6 أحرف أو أرقام على الأقل)" : "At least 6 characters"}
+                      className={`h-11 ${isRtl ? "pr-9 pl-10" : "pl-9 pr-10"}`}
+                      dir="ltr"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowFormPassword(!showFormPassword)}
+                      className={`absolute top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer ${
+                        isRtl ? "left-3" : "right-3"
+                      }`}
+                    >
+                      {showFormPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                    {isRtl
+                      ? "يمكنك كتابة كلمة المرور أو توليدها تلقائياً، وسيتمكن الموظف من تسجيل الدخول بها فوراً."
+                      : "Type or generate automatically. Staff member can log in with it immediately."}
+                  </p>
+                </div>
+
                 {/* Role Selector */}
                 <div>
                   <label className="block text-xs font-semibold uppercase text-slate-700 dark:text-slate-300 mb-1.5">
@@ -683,31 +835,6 @@ export default function UsersManagementPage() {
                   </label>
                 </div>
 
-                {/* Optional Initial Password */}
-                {!formSendInvite && (
-                  <div>
-                    <label className="block text-xs font-semibold uppercase text-slate-700 dark:text-slate-300 mb-1.5">
-                      {isRtl ? "كلمة المرور الابتدائية (مطلوبة في حال عدم إرسال بريد)" : "Initial Password *"}
-                    </label>
-                    <div className="relative">
-                      <Lock
-                        className={`absolute top-3 h-4 w-4 text-slate-400 ${
-                          isRtl ? "right-3" : "left-3"
-                        }`}
-                      />
-                      <Input
-                        type="password"
-                        value={formInitialPassword}
-                        onChange={(e) => setFormInitialPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className={`h-11 ${isRtl ? "pr-9" : "pl-9"}`}
-                        dir="ltr"
-                        required={!formSendInvite}
-                      />
-                    </div>
-                  </div>
-                )}
-
                 {/* Modal Actions */}
                 <div className="pt-2 flex items-center justify-end gap-2.5">
                   <Button
@@ -731,6 +858,125 @@ export default function UsersManagementPage() {
                       </>
                     ) : (
                       <span>{isRtl ? "إنشاء وتفعيل الحساب" : "Create Staff Account"}</span>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Direct Reset Password for Staff Member Modal */}
+      <AnimatePresence>
+        {resetPasswordModalUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.15 }}
+              className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl p-6 relative overflow-hidden"
+            >
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={() => setResetPasswordModalUser(null)}
+                className={`absolute top-5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer ${
+                  isRtl ? "left-5" : "right-5"
+                }`}
+              >
+                <X className="h-5 w-5" />
+              </button>
+
+              {/* Modal Header */}
+              <div className="flex items-center gap-3 mb-5">
+                <div className="h-10 w-10 rounded-xl bg-sky-50 dark:bg-sky-950 text-sky-600 flex items-center justify-center border border-sky-100 dark:border-sky-900">
+                  <KeyRound className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    {isRtl ? "إعادة تعيين كلمة المرور للموظف" : "Reset Staff Password"}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                    {resetPasswordModalUser.name} • {resetPasswordModalUser.email}
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleAdminResetPassword} className="space-y-4">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold uppercase text-slate-700 dark:text-slate-300">
+                      {isRtl ? "كلمة المرور الجديدة *" : "New Password *"}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleGenerateResetPassword}
+                      className="text-[11px] font-semibold text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Wand2 className="h-3 w-3" />
+                      <span>{isRtl ? "توليد كلمة سر" : "Generate"}</span>
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Lock
+                      className={`absolute top-3 h-4 w-4 text-slate-400 ${
+                        isRtl ? "right-3" : "left-3"
+                      }`}
+                    />
+                    <Input
+                      type={showResetPassword ? "text" : "password"}
+                      value={newResetPassword}
+                      onChange={(e) => setNewResetPassword(e.target.value)}
+                      placeholder={isRtl ? "كلمة مرور جديدة (6 خانات على الأقل)" : "Minimum 6 characters"}
+                      className={`h-11 ${isRtl ? "pr-9 pl-10" : "pl-9 pr-10"}`}
+                      dir="ltr"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowResetPassword(!showResetPassword)}
+                      className={`absolute top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer ${
+                        isRtl ? "left-3" : "right-3"
+                      }`}
+                    >
+                      {showResetPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                    {isRtl
+                      ? "سيتم تحديث كلمة المرور وتفعيل الحساب مباشرة للموظف."
+                      : "Password will be updated and account activated immediately."}
+                  </p>
+                </div>
+
+                <div className="pt-2 flex items-center justify-end gap-2.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setResetPasswordModalUser(null)}
+                    disabled={isResettingPassword}
+                    className="rounded-xl"
+                  >
+                    {isRtl ? "إلغاء" : "Cancel"}
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={isResettingPassword}
+                    className="bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-xl gap-2 shadow-md shadow-sky-600/20"
+                  >
+                    {isResettingPassword ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>{isRtl ? "جاري التحديث..." : "Updating..."}</span>
+                      </>
+                    ) : (
+                      <span>{isRtl ? "حفظ وتعيين كلمة المرور" : "Save New Password"}</span>
                     )}
                   </Button>
                 </div>

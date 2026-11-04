@@ -1,7 +1,12 @@
 import { Resend } from "resend";
 
-const resendApiKey = process.env.RESEND_API_KEY;
-export const resend = new Resend(resendApiKey);
+function getResendClient() {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey || apiKey.trim() === "" || apiKey.includes("REPLACE_WITH")) {
+    return null;
+  }
+  return new Resend(apiKey.trim());
+}
 
 const EMAIL_FROM = process.env.EMAIL_FROM || "Sinoma Warehouse ERP <onboarding@resend.dev>";
 
@@ -18,6 +23,15 @@ export async function sendPasswordResetEmail({
   resetUrl: string;
 }) {
   try {
+    const resend = getResendClient();
+    if (!resend) {
+      console.warn("Resend API key is missing or not configured.");
+      return {
+        success: false,
+        error: "مفتاح Resend API غير مضبوط في متغيرات البيئة (RESEND_API_KEY is missing).",
+      };
+    }
+
     const htmlContent = `
       <!DOCTYPE html>
       <html dir="rtl" lang="ar">
@@ -75,7 +89,11 @@ export async function sendPasswordResetEmail({
 
     if (error) {
       console.error("Resend error sending reset email:", error);
-      return { success: false, error: error.message };
+      let userFriendlyError = error.message;
+      if (error.message && error.message.includes("testing emails to your own email")) {
+        userFriendlyError = `حساب Resend التجريبي يرسل فقط للبريد المسجل في حساب Resend. يرجى توثيق نطاق الشركة (Domain) في resend.com لإرسال البريد لأي موظف. (${error.message})`;
+      }
+      return { success: false, error: userFriendlyError };
     }
 
     return { success: true, messageId: data?.id };
@@ -102,6 +120,15 @@ export async function sendStaffActivationEmail({
   invitedByName?: string;
 }) {
   try {
+    const resend = getResendClient();
+    if (!resend) {
+      console.warn("Resend API key is missing or not configured.");
+      return {
+        success: false,
+        error: "مفتاح Resend API غير مضبوط في متغيرات البيئة (RESEND_API_KEY is missing).",
+      };
+    }
+
     const roleTitles: Record<string, string> = {
       ADMIN: "مدير النظام (Administrator)",
       STOREKEEPER: "أمين المستودع (Warehouse Storekeeper)",
@@ -176,7 +203,11 @@ export async function sendStaffActivationEmail({
 
     if (error) {
       console.error("Resend error sending activation email:", error);
-      return { success: false, error: error.message };
+      let userFriendlyError = error.message;
+      if (error.message && error.message.includes("testing emails to your own email")) {
+        userFriendlyError = `حساب Resend التجريبي يرسل فقط للبريد المسجل في حساب Resend. يرجى توثيق نطاق الشركة (Domain) في resend.com لإرسال البريد لأي موظف. (${error.message})`;
+      }
+      return { success: false, error: userFriendlyError };
     }
 
     return { success: true, messageId: data?.id };
@@ -185,4 +216,5 @@ export async function sendStaffActivationEmail({
     return { success: false, error: err.message || "Failed to send invitation email" };
   }
 }
+
 
