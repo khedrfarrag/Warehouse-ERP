@@ -239,32 +239,43 @@ export async function requestPasswordReset(email: string) {
       };
     }
 
-    const resetToken = crypto.randomBytes(32).toString("hex");
-    const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    // Generate new secure password (e.g. Sinoma@481923)
+    const randomSuffix = Math.floor(100000 + Math.random() * 900000);
+    const newPassword = `Sinoma@${randomSuffix}`;
+    const hashedPassword = await hashPassword(newPassword);
 
+    // Directly update password in database and ensure active status
     await prisma.user.update({
       where: { id: user.id },
-      data: { resetToken, resetTokenExpiry },
+      data: {
+        password: hashedPassword,
+        status: "ACTIVE",
+        resetToken: null,
+        resetTokenExpiry: null,
+      },
     });
 
-    const resetUrl = `${getAppUrl()}/reset-password?token=${resetToken}`;
+    const loginUrl = `${getAppUrl()}/login`;
     const emailRes = await sendPasswordResetEmail({
       to: user.email,
       name: user.name,
-      resetUrl,
+      newPassword,
+      loginUrl,
     });
 
     if (!emailRes.success) {
       console.warn("Resend email warning:", emailRes.error);
       return {
         success: false,
-        error: emailRes.error || "فشل إرسال رسالة الاستعادة عبر Resend",
+        error: emailRes.error || "فشل إرسال رسالة كلمة المرور الجديدة عبر Resend",
+        temporaryPassword: newPassword,
       };
     }
 
     return {
       success: true,
-      message: "تم إرسال رابط إعادة تعيين كلمة المرور بنجاح عبر Resend إلى بريدك الإلكتروني.",
+      message: "تم إنشاء كلمة مرور جديدة وإرسالها إلى بريدك الإلكتروني بنجاح عبر Resend.",
+      temporaryPassword: newPassword,
     };
   } catch (err: any) {
     console.error("requestPasswordReset error:", err);

@@ -21,6 +21,9 @@ import {
   ArrowRight,
   CheckCircle2,
   ShieldCheck,
+  Copy,
+  Check,
+  KeyRound,
 } from "lucide-react";
 
 export default function ForgotPasswordPage() {
@@ -28,6 +31,8 @@ export default function ForgotPasswordPage() {
   const [isPending, startTransition] = useTransition();
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState("");
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const {
     register,
@@ -45,10 +50,28 @@ export default function ForgotPasswordPage() {
       const res = await requestPasswordReset(data.email);
       if (res.success) {
         setSubmittedEmail(data.email);
+        if (res.temporaryPassword) {
+          setTempPassword(res.temporaryPassword);
+        }
         setIsSubmitted(true);
-        toast.success(t.auth.resetLinkSent);
+        toast.success(
+          isRtl
+            ? "تم إنشاء كلمة المرور الجديدة وإرسالها بالبريد بنجاح"
+            : "New password generated and dispatched to your email"
+        );
       } else {
-        toast.error(res.error || "Failed to process request");
+        if (res.temporaryPassword) {
+          setSubmittedEmail(data.email);
+          setTempPassword(res.temporaryPassword);
+          setIsSubmitted(true);
+          toast.warning(
+            isRtl
+              ? "تم تعيين كلمة المرور الجديدة، ولكن تعذر إرسال البريد عبر Resend"
+              : "Password reset completed, but Resend email dispatch failed"
+          );
+        } else {
+          toast.error(res.error || "Failed to process request");
+        }
       }
     });
   };
@@ -103,15 +126,57 @@ export default function ForgotPasswordPage() {
                   <CheckCircle2 className="h-7 w-7" />
                 </div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  {t.auth.resetLinkSent}
+                  {isRtl ? "تم إرسال كلمة المرور الجديدة" : "New Password Issued & Dispatched"}
                 </h3>
                 <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                  {t.auth.resetLinkSentDesc}
+                  {isRtl
+                    ? "تم إنشاء كلمة مرور جديدة لحسابك وتحديثها فورياً في النظام، وتم إرسال تفاصيل الدخول إلى بريدك الإلكتروني التالي:"
+                    : "A new secure password has been generated, updated in the system, and dispatched to your email address:"}
                 </p>
-                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300 font-mono break-all">
+                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300 font-mono break-all font-semibold">
                   {submittedEmail}
                 </div>
-                <div className="pt-4 flex flex-col gap-2">
+
+                {/* Direct Password Display & Copy Box */}
+                {tempPassword && (
+                  <div className="p-4 rounded-2xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800/60 text-center space-y-2">
+                    <span className="text-[11px] font-semibold text-sky-800 dark:text-sky-300 uppercase tracking-wider block">
+                      {isRtl ? "كلمة المرور الجديدة لتسجيل الدخول" : "Your New Login Password"}
+                    </span>
+                    <div className="flex items-center justify-center gap-2">
+                      <span
+                        className="font-mono text-xl font-black tracking-widest text-sky-800 dark:text-sky-300 select-all"
+                        dir="ltr"
+                      >
+                        {tempPassword}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(tempPassword);
+                          setCopied(true);
+                          toast.success(isRtl ? "تم نسخ كلمة المرور" : "Password copied!");
+                          setTimeout(() => setCopied(false), 2000);
+                        }}
+                        className="p-1.5 rounded-lg border border-sky-300 dark:border-sky-700 bg-white dark:bg-slate-800 text-sky-600 hover:bg-sky-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                        title="Copy password"
+                      >
+                        {copied ? (
+                          <Check className="h-4 w-4 text-emerald-600" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      {isRtl
+                        ? "تم إرسال الكلمة بالبريد، كما يمكنك نسخها من هنا والدخول فوراً."
+                        : "Sent to email. You can also copy and sign in immediately."}
+                    </p>
+                  </div>
+                )}
+
+                <div className="pt-2 flex flex-col gap-2">
                   <Link
                     href="/login"
                     className="w-full inline-flex items-center justify-center h-11 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-xl text-sm shadow-md shadow-sky-600/20"
@@ -120,7 +185,10 @@ export default function ForgotPasswordPage() {
                   </Link>
                   <button
                     type="button"
-                    onClick={() => setIsSubmitted(false)}
+                    onClick={() => {
+                      setIsSubmitted(false);
+                      setTempPassword(null);
+                    }}
                     className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline py-2 cursor-pointer"
                   >
                     {isRtl ? "جرب بريداً إلكترونياً آخر" : "Try another email"}

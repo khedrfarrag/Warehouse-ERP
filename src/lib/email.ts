@@ -16,11 +16,15 @@ const EMAIL_FROM = process.env.EMAIL_FROM || "Sinoma Warehouse ERP <onboarding@r
 export async function sendPasswordResetEmail({
   to,
   name,
+  newPassword,
+  loginUrl,
   resetUrl,
 }: {
   to: string;
   name: string;
-  resetUrl: string;
+  newPassword?: string;
+  loginUrl?: string;
+  resetUrl?: string;
 }) {
   try {
     const resend = getResendClient();
@@ -32,7 +36,64 @@ export async function sendPasswordResetEmail({
       };
     }
 
-    const htmlContent = `
+    const targetLoginUrl = loginUrl || resetUrl || "http://localhost:3000/login";
+
+    const htmlContent = newPassword
+      ? `
+      <!DOCTYPE html>
+      <html dir="rtl" lang="ar">
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #1e293b; }
+            .container { max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+            .header { background: #0f172a; padding: 32px 24px; text-align: center; color: #ffffff; }
+            .header h1 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+            .header p { margin: 6px 0 0; font-size: 13px; color: #94a3b8; }
+            .content { padding: 32px 24px; line-height: 1.6; }
+            .badge { display: inline-block; background: #dcfce7; color: #15803d; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-bottom: 12px; }
+            .pwd-box { background: #0f172a; color: #38bdf8; font-size: 22px; font-weight: 800; font-family: Consolas, Monaco, monospace; padding: 18px; border-radius: 12px; letter-spacing: 2.5px; text-align: center; margin: 20px 0; border: 1px solid #1e293b; }
+            .btn { display: inline-block; background: #0284c7; color: #ffffff !important; font-weight: 700; font-size: 14px; padding: 14px 32px; border-radius: 10px; text-decoration: none; margin: 20px 0; }
+            .cred-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin: 16px 0; }
+            .footer { background: #f1f5f9; padding: 16px 24px; text-align: center; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>شركة سينوما للمقاولات العامة</h1>
+              <p>نظام إدارة المستودعات والعمليات اللوجستية (ERP)</p>
+            </div>
+            <div class="content" style="text-align: right;">
+              <span class="badge">تم تحديث كلمة المرور</span>
+              <h2 style="font-size: 18px; margin-top: 4px; color: #0f172a;">كلمة المرور الجديدة الخاصة بحسابك</h2>
+              <p>مرحباً <strong>${name}</strong>،</p>
+              <p>تم استلام طلب لإعادة تعيين كلمة المرور لحسابك في نظام مستودعات سينوما. تم إنشاء كلمة مرور جديدة مؤكدة لحسابك، ويمكنك استخدامها فوراً لتسجيل الدخول:</p>
+              
+              <div class="cred-card">
+                <div style="font-size: 12px; color: #64748b; margin-bottom: 4px;">البريد الإلكتروني المعتمد:</div>
+                <div style="font-size: 14px; font-family: monospace; font-weight: bold; color: #0f172a; direction: ltr; text-align: right;">${to}</div>
+                <div style="font-size: 12px; color: #64748b; margin-top: 12px; margin-bottom: 4px;">كلمة المرور الجديدة (New Password):</div>
+                <div class="pwd-box" dir="ltr">${newPassword}</div>
+              </div>
+
+              <div style="text-align: center;">
+                <a href="${targetLoginUrl}" class="btn">تسجيل الدخول إلى النظام (Sign In)</a>
+              </div>
+
+              <p style="font-size: 12px; color: #64748b;">
+                يرجى الاحتفاظ بهذه البيانات بأمان وعدم مشاركتها مع أي شخص. يمكنك تغيير كلمة المرور بعد الدخول من إعدادات الحساب في أي وقت.
+              </p>
+            </div>
+            <div class="footer">
+              Sinoma CDI Contracting • Warehouse & Logistics ERP<br>
+              هذه رسالة آلية تم إنشاؤها عبر منصة Resend - يرجى عدم الرد المباشر عليها.
+            </div>
+          </div>
+        </body>
+      </html>
+    `
+      : `
       <!DOCTYPE html>
       <html dir="rtl" lang="ar">
         <head>
@@ -80,10 +141,14 @@ export async function sendPasswordResetEmail({
       </html>
     `;
 
+    const emailSubject = newPassword
+      ? "كلمة المرور الجديدة الخاصة بحسابك | Sinoma Warehouse ERP"
+      : "إعادة تعيين كلمة المرور | Sinoma Warehouse ERP";
+
     const { data, error } = await resend.emails.send({
       from: EMAIL_FROM,
       to,
-      subject: "إعادة تعيين كلمة المرور | Sinoma Warehouse ERP",
+      subject: emailSubject,
       html: htmlContent,
     });
 
