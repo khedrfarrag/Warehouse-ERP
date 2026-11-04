@@ -27,6 +27,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { t, direction } = useI18n();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const { user: currentUser } = useAuth();
 
   useEffect(() => {
@@ -34,6 +35,7 @@ export function Sidebar() {
     if (saved !== null) {
       setIsCollapsed(saved === "true");
     }
+    setMounted(true);
   }, []);
 
   // Hide entire sidebar on dedicated authentication pages
@@ -128,14 +130,15 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "hidden lg:flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-950/95 backdrop-blur transition-all duration-300 ease-in-out z-40 sticky top-0 h-screen no-print",
+        "hidden lg:flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 z-40 sticky top-0 h-screen no-print",
+        mounted ? "transition-[width] duration-200 ease-in-out" : "transition-none",
         isCollapsed ? "w-[72px]" : "w-64"
       )}
     >
       {/* Brand Header */}
       <div className="h-16 flex items-center justify-between px-3.5 border-b border-slate-200 dark:border-slate-800">
-        <Link href="/" prefetch={true} className="flex items-center gap-2.5 overflow-hidden group">
-          <div className="h-10 w-10 shrink-0 rounded-xl bg-gradient-to-tr from-sky-600 to-cyan-500 flex items-center justify-center text-white shadow-md shadow-sky-500/20 group-hover:scale-105 transition-transform">
+        <Link href="/" className="flex items-center gap-2.5 overflow-hidden group">
+          <div className="h-10 w-10 shrink-0 rounded-xl bg-gradient-to-tr from-sky-600 to-cyan-500 flex items-center justify-center text-white shadow-md shadow-sky-500/20">
             <Building2 className="h-5 w-5" />
           </div>
           {!isCollapsed && (
@@ -169,10 +172,9 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              prefetch={true}
               title={isCollapsed ? item.name : undefined}
               className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium transition-all group relative",
+                "flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium transition-colors active:scale-[0.98] select-none group relative",
                 isActive
                   ? "bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20 shadow-sm"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-900",
@@ -181,7 +183,7 @@ export function Sidebar() {
             >
               <Icon
                 className={cn(
-                  "h-5 w-5 shrink-0 transition-transform group-hover:scale-110",
+                  "h-5 w-5 shrink-0 transition-colors",
                   isActive
                     ? "text-sky-600 dark:text-sky-400"
                     : "text-slate-500 dark:text-slate-400"
