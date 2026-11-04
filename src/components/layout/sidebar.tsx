@@ -134,7 +134,7 @@ export function Sidebar() {
     >
       {/* Brand Header */}
       <div className="h-16 flex items-center justify-between px-3.5 border-b border-slate-200 dark:border-slate-800">
-        <Link href="/" prefetch={false} className="flex items-center gap-2.5 overflow-hidden group">
+        <Link href="/" prefetch={true} className="flex items-center gap-2.5 overflow-hidden group">
           <div className="h-10 w-10 shrink-0 rounded-xl bg-gradient-to-tr from-sky-600 to-cyan-500 flex items-center justify-center text-white shadow-md shadow-sky-500/20 group-hover:scale-105 transition-transform">
             <Building2 className="h-5 w-5" />
           </div>
@@ -169,7 +169,7 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              prefetch={false}
+              prefetch={true}
               title={isCollapsed ? item.name : undefined}
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium transition-all group relative",

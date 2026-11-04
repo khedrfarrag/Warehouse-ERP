@@ -21,9 +21,15 @@ const AuthContext = createContext<AuthContextType>({
   refreshUser: async () => {},
 });
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthSessionPayload | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+export function AuthProvider({
+  children,
+  initialUser = null,
+}: {
+  children: React.ReactNode;
+  initialUser?: AuthSessionPayload | null;
+}) {
+  const [user, setUser] = useState<AuthSessionPayload | null>(initialUser);
+  const [isLoading, setIsLoading] = useState(!initialUser);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -42,10 +48,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Re-fetch on initial mount and whenever pathname changes
+  // Only re-fetch if initialUser is missing on client mount
   useEffect(() => {
-    fetchUser();
-  }, [pathname]);
+    if (!initialUser) {
+      fetchUser();
+    }
+  }, []);
 
   const logout = async () => {
     await logoutUser();

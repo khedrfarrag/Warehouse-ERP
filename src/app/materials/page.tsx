@@ -34,7 +34,7 @@ import {
   exportMaterialsCatalogExcel,
 } from "@/lib/export-excel";
 import { toast } from "sonner";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 
 export default function MaterialsPage() {
   const { t, direction } = useI18n();

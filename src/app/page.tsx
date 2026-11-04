@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { DashboardView } from "@/components/dashboard/dashboard-view";
 
-export const revalidate = 0; // dynamic dashboard
+export const revalidate = 20; // 20-second edge cache with on-demand server action revalidation
 
 export default async function DashboardPage() {
   let materialsCount = 0;
