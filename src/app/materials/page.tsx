@@ -590,11 +590,16 @@ export default function MaterialsPage() {
                           )}
                         </td>
 
-                        {/* Category */}
+                        {/* Category & Subcategory */}
                         <td className="px-5 py-4">
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200">
                             {item.category}
                           </span>
+                          {item.subCategory && (
+                            <span className="block text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
+                              {item.subCategory}
+                            </span>
+                          )}
                         </td>
 
                         {/* Storage Location */}

@@ -35,6 +35,8 @@ model Material {
   itemCode         String               @unique
   name             String
   category         String?              // Cached/fallback category name
+  subCategory      String?              // Sub-category name (from Sinoma Coding System)
+  subCategoryCode  String?              // Sub-category code (1-9)
   unit             String?              // Cached/fallback unit name
   categoryId       String?
   unitId           String?
@@ -56,6 +58,7 @@ model Material {
   @@index([name])
   @@index([currentStock])
   @@index([categoryId])
+  @@index([subCategoryCode])
   @@index([unitId])
   @@index([createdAt(sort: Desc)])
 }

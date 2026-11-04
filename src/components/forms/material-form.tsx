@@ -10,6 +10,10 @@ import { MaterialSchema, MaterialInput } from "@/lib/schemas/material";
 import { createMaterial, generateNextItemCode } from "@/server/actions/materials";
 import { getCategories } from "@/server/actions/categories";
 import { getUnitsOfMeasure } from "@/server/actions/units";
+import {
+  SINOMA_MAIN_CATEGORIES,
+  SINOMA_UNITS_OF_MEASURE,
+} from "@/lib/sinoma-coding-system";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useI18n } from "@/lib/i18n";
@@ -26,9 +30,11 @@ export function MaterialModal({ onSuccess }: MaterialFormProps) {
   const [categories, setCategories] = useState<any[]>([]);
   const [units, setUnits] = useState<any[]>([]);
 
-  // Smart SKU Generator Fields
-  const [countryCode, setCountryCode] = useState("EGY");
-  const [attributeCode, setAttributeCode] = useState("5");
+  // Official Sinoma Material Coding System Parameters
+  const [companyCode, setCompanyCode] = useState("CDI");
+  const [countryCode, setCountryCode] = useState("EG");
+  const [subCategoryCode, setSubCategoryCode] = useState("1");
+  const [generatedSerial, setGeneratedSerial] = useState("000001");
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const {
@@ -45,6 +51,8 @@ export function MaterialModal({ onSuccess }: MaterialFormProps) {
       name: "",
       categoryId: "",
       unitId: "",
+      subCategory: "",
+      subCategoryCode: "1",
       imageUrl: "",
       minStock: 0,
       location: "",
@@ -54,6 +62,17 @@ export function MaterialModal({ onSuccess }: MaterialFormProps) {
 
   const selectedCategoryId = watch("categoryId");
   const selectedUnitId = watch("unitId");
+
+  // Derive active Sinoma Category and Subcategories
+  const activeCategory = categories.find((c) => c.id === selectedCategoryId);
+  const sinomaCategoryDef =
+    SINOMA_MAIN_CATEGORIES.find((sc) => sc.code === activeCategory?.code) ||
+    SINOMA_MAIN_CATEGORIES[0];
+  const availableSubCategories = sinomaCategoryDef.subCategories;
+  const activeSubCategory =
+    availableSubCategories.find((s) => s.code === subCategoryCode) ||
+    availableSubCategories[0];
+  const activeUnit = units.find((u) => u.id === selectedUnitId);
 
   useEffect(() => {
     if (isOpen) {
@@ -74,7 +93,16 @@ export function MaterialModal({ onSuccess }: MaterialFormProps) {
     }
   }, [isOpen]);
 
-  // Trigger Smart Code Generation when Category or Unit changes
+  // When main category changes, reset subCategoryCode to "1"
+  useEffect(() => {
+    if (availableSubCategories && availableSubCategories.length > 0) {
+      if (!availableSubCategories.some((s) => s.code === subCategoryCode)) {
+        setSubCategoryCode("1");
+      }
+    }
+  }, [selectedCategoryId, availableSubCategories]);
+
+  // Trigger Official Sinoma Code Generation (CDI-EG-XYZZZZZZ)
   useEffect(() => {
     if (selectedCategoryId && selectedUnitId && categories.length > 0 && units.length > 0) {
       const cat = categories.find((c) => c.id === selectedCategoryId);
@@ -82,18 +110,33 @@ export function MaterialModal({ onSuccess }: MaterialFormProps) {
 
       if (cat && uom) {
         generateNextItemCode({
+          companyCode,
           countryCode,
           categoryCode: cat.code,
-          attributeCode,
+          subCategoryCode,
           unitCode: uom.code,
         }).then((res) => {
           if (res.success && res.itemCode) {
             setValue("itemCode", res.itemCode);
+            setValue("subCategory", activeSubCategory?.name || "");
+            setValue("subCategoryCode", subCategoryCode);
+            if (res.formattedSerial) {
+              setGeneratedSerial(res.formattedSerial);
+            }
           }
         });
       }
     }
-  }, [selectedCategoryId, selectedUnitId, countryCode, attributeCode, categories, units]);
+  }, [
+    selectedCategoryId,
+    selectedUnitId,
+    subCategoryCode,
+    companyCode,
+    countryCode,
+    categories,
+    units,
+    activeSubCategory,
+  ]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -199,14 +242,33 @@ export function MaterialModal({ onSuccess }: MaterialFormProps) {
               </div>
 
               <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
-                {/* Smart Code Generation Controls */}
-                <div className="p-4 rounded-xl bg-sky-50/60 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-900/60 space-y-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-sky-800 dark:text-sky-300 flex items-center gap-1.5">
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Smart SKU Generator Parameters
-                  </span>
+                {/* Official Sinoma Material Coding System Panel */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-sky-50/90 to-slate-50 dark:from-slate-800/80 dark:to-slate-900 border border-sky-100 dark:border-slate-700/60 space-y-3.5 shadow-sm">
+                  <div className="flex items-center justify-between border-b border-sky-100 dark:border-slate-700/60 pb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-sky-800 dark:text-sky-300 flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-sky-600" />
+                      Sinoma Material Coding System (9 Digits)
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 font-bold border border-sky-200 dark:border-sky-800">
+                      CDI-EG-XYZZZZZZ
+                    </span>
+                  </div>
 
-                  <div className="grid grid-cols-3 gap-3">
+                  {/* Company & Country Site Selector */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                        Company Name
+                      </label>
+                      <select
+                        value={companyCode}
+                        onChange={(e) => setCompanyCode(e.target.value)}
+                        className="h-9 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 text-xs font-semibold text-slate-800 dark:text-slate-200"
+                      >
+                        <option value="CDI">CDI (Sinoma Chengdu)</option>
+                      </select>
+                    </div>
+
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
                         Country Site
@@ -216,24 +278,47 @@ export function MaterialModal({ onSuccess }: MaterialFormProps) {
                         onChange={(e) => setCountryCode(e.target.value)}
                         className="h-9 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 text-xs font-semibold text-slate-800 dark:text-slate-200"
                       >
-                        <option value="EGY">EGY (Egypt Site)</option>
+                        <option value="EG">EG (Egypt Site)</option>
                         <option value="KSA">KSA (Saudi Site)</option>
                         <option value="UAE">UAE (Dubai Site)</option>
-                        <option value="CHN">CHN (Sinoma HQ)</option>
+                        <option value="CHN">CHN (China HQ)</option>
                       </select>
                     </div>
 
-                    <div>
+                    <div className="sm:col-span-2">
                       <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                        {t.materials.category} *
+                        1. Main Category (Main Code 1-6) *
                       </label>
                       <select
                         {...register("categoryId")}
                         className="h-9 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 text-xs font-semibold text-slate-800 dark:text-slate-200"
                       >
-                        {categories.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            [{c.code}] {c.name}
+                        {categories.map((c) => {
+                          const sc = SINOMA_MAIN_CATEGORIES.find((s) => s.code === c.code);
+                          return (
+                            <option key={c.id} value={c.id}>
+                              [{c.code}] {c.name} {sc ? `(${sc.nameAr.split(" ")[0]})` : ""}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Subcategory & Unit Selector */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                        2. Sub Category (Sub Code 1-9) *
+                      </label>
+                      <select
+                        value={subCategoryCode}
+                        onChange={(e) => setSubCategoryCode(e.target.value)}
+                        className="h-9 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 text-xs font-semibold text-slate-800 dark:text-slate-200"
+                      >
+                        {availableSubCategories.map((sub) => (
+                          <option key={sub.code} value={sub.code}>
+                            [{sub.code}] {sub.name} ({sub.nameAr})
                           </option>
                         ))}
                       </select>
@@ -241,34 +326,60 @@ export function MaterialModal({ onSuccess }: MaterialFormProps) {
 
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                        {t.materials.unit} *
+                        3. Unit of Measure (Unit Code 1-9) *
                       </label>
                       <select
                         {...register("unitId")}
                         className="h-9 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 text-xs font-semibold text-slate-800 dark:text-slate-200"
                       >
-                        {units.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            [{u.code}] {u.abbreviation} - {u.name}
-                          </option>
-                        ))}
+                        {units.map((u) => {
+                          const su = SINOMA_UNITS_OF_MEASURE.find((s) => s.code === u.code);
+                          return (
+                            <option key={u.id} value={u.id}>
+                              [{u.code}] {u.abbreviation} - {u.name} {su ? `(${su.nameAr})` : ""}
+                            </option>
+                          );
+                        })}
                       </select>
                     </div>
                   </div>
 
+                  {/* Generated Item Code Display & Structural Breakdown */}
                   <div>
                     <label className="block text-xs font-semibold uppercase text-slate-700 dark:text-slate-300 mb-1">
-                      {t.materials.itemCode} *
+                      {t.materials.itemCode} (Sinoma Standard 9-Digit Code) *
                     </label>
                     <Input
                       {...register("itemCode")}
-                      placeholder="e.g. EGY-15200001"
+                      placeholder="e.g. CDI-EG-612000032"
                       dir="ltr"
-                      className="font-mono text-base font-bold text-sky-700 dark:text-sky-300 tracking-wider uppercase bg-white dark:bg-slate-800"
+                      className="font-mono text-base font-black text-sky-700 dark:text-sky-300 tracking-wider uppercase bg-white dark:bg-slate-900 border-sky-300 dark:border-sky-800"
                     />
                     {errors.itemCode && (
                       <p className="text-xs text-rose-500 mt-1">{errors.itemCode.message}</p>
                     )}
+
+                    {/* Breakdown Badges */}
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-mono">
+                      <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border">
+                        Comp: <strong>{companyCode}</strong>
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border">
+                        Site: <strong>{countryCode}</strong>
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                        Cat [1st]: <strong>{activeCategory?.code || "1"}</strong> ({activeCategory?.name || "Category"})
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                        Sub [2nd]: <strong>{subCategoryCode}</strong> ({activeSubCategory?.name || "Subcategory"})
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/50 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                        Unit [3rd]: <strong>{activeUnit?.code || "1"}</strong> ({activeUnit?.abbreviation || "PCS"})
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-sky-50 dark:bg-sky-950/50 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
+                        Seq [6-digit]: <strong>{generatedSerial}</strong>
+                      </span>
+                    </div>
                   </div>
                 </div>
 

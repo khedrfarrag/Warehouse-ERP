@@ -16,6 +16,8 @@ export const MaterialSchema = z.object({
   categoryId: z.string().min(1, "Please select a category"),
   unitId: z.string().min(1, "Please select a unit of measure"),
   category: z.string().optional(),
+  subCategory: z.string().optional(),
+  subCategoryCode: z.string().optional(),
   unit: z.string().optional(),
   imageUrl: z.string().optional().or(z.literal("")),
   minStock: z.coerce
@@ -35,6 +37,8 @@ export const UpdateMaterialSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(150),
   categoryId: z.string().min(1, "Please select a category").optional(),
   unitId: z.string().min(1, "Please select a unit of measure").optional(),
+  subCategory: z.string().optional().nullable(),
+  subCategoryCode: z.string().optional().nullable(),
   location: z.string().min(1, "Storage location is required").max(100),
   minStock: z.coerce.number().min(0, "Minimum safety stock must be >= 0"),
   imageUrl: z.string().optional().nullable(),

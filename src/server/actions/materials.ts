@@ -106,42 +106,55 @@ export async function getMaterials(params?: {
 }
 
 export async function generateNextItemCode(params: {
+  companyCode?: string;
   countryCode?: string;
   categoryCode: string;
-  attributeCode?: string;
+  subCategoryCode?: string;
   unitCode: string;
 }) {
   try {
-    const prefix = buildSmartCodePrefix(
-      params.countryCode || "EGY",
-      params.categoryCode,
-      params.attributeCode || "0",
-      params.unitCode
-    );
+    const company = (params.companyCode || "CDI").trim().toUpperCase();
+    const country = (params.countryCode || "EG").trim().toUpperCase();
+    const catCode = (params.categoryCode || "1").trim().slice(0, 1);
+    const subCode = (params.subCategoryCode || "1").trim().slice(0, 1);
+    const unitCode = (params.unitCode || "1").trim().slice(0, 1);
 
-    // Find highest matching sequence in DB
-    const latestMatches = await prisma.material.findMany({
+    const fullPrefix = `${company}-${country}-${catCode}${subCode}${unitCode}`;
+    const categorySubGroup = `${company}-${country}-${catCode}${subCode}`;
+
+    // According to Sinoma spec:
+    // "The serial number is a sequential code that depends on both the Main Code and the Sub Code"
+    const existingMatches = await prisma.material.findMany({
       where: {
-        itemCode: { startsWith: prefix },
+        itemCode: { startsWith: categorySubGroup },
       },
       select: { itemCode: true },
     });
 
     let maxSeq = 0;
-    for (const item of latestMatches) {
-      const suffix = item.itemCode.slice(prefix.length);
-      const parsed = parseInt(suffix, 10);
-      if (!isNaN(parsed) && parsed > maxSeq) {
-        maxSeq = parsed;
+    for (const item of existingMatches) {
+      const codeOnly = item.itemCode.trim();
+      const match = codeOnly.match(/(\d{6})$/);
+      if (match) {
+        const parsed = parseInt(match[1], 10);
+        if (!isNaN(parsed) && parsed > maxSeq) {
+          maxSeq = parsed;
+        }
       }
     }
 
     const nextSeq = maxSeq + 1;
-    const smartCode = formatSmartItemCode(prefix, nextSeq);
+    const smartCode = `${fullPrefix}${String(nextSeq).padStart(6, "0")}`;
 
-    return { success: true, itemCode: smartCode, nextSequence: nextSeq };
+    return {
+      success: true,
+      itemCode: smartCode,
+      nextSequence: nextSeq,
+      formattedSerial: String(nextSeq).padStart(6, "0"),
+      prefix: fullPrefix,
+    };
   } catch (error: any) {
-    console.error("Error generating smart item code:", error);
+    console.error("Error generating Sinoma smart item code:", error);
     return { success: false, error: error.message };
   }
 }
@@ -173,8 +186,10 @@ export async function createMaterial(input: MaterialInput) {
         name: validated.name,
         categoryId: validated.categoryId,
         unitId: validated.unitId,
-        category: cat?.name || "General",
-        unit: uom?.abbreviation || "PCS",
+        category: cat?.name || validated.category || "General",
+        subCategory: validated.subCategory || null,
+        subCategoryCode: validated.subCategoryCode || null,
+        unit: uom?.abbreviation || validated.unit || "PCS",
         imageUrl: validated.imageUrl || null,
         minStock: validated.minStock,
         currentStock: 0.0,
@@ -218,6 +233,8 @@ export async function updateMaterial(id: string, input: UpdateMaterialInput) {
         categoryId: validated.categoryId,
         unitId: validated.unitId,
         category: categoryName,
+        subCategory: validated.subCategory,
+        subCategoryCode: validated.subCategoryCode,
         unit: unitAbbr,
         location: validated.location,
         minStock: validated.minStock,

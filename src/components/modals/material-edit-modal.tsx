@@ -10,6 +10,7 @@ import { UpdateMaterialSchema, UpdateMaterialInput } from "@/lib/schemas/materia
 import { updateMaterial } from "@/server/actions/materials";
 import { getCategories } from "@/server/actions/categories";
 import { getUnitsOfMeasure } from "@/server/actions/units";
+import { parseSinomaItemCode } from "@/lib/sinoma-coding-system";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useI18n } from "@/lib/i18n";
@@ -145,9 +146,20 @@ export function MaterialEditModal({
               <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                 {t.materials.editMaterial}
               </h2>
-              <span className="font-mono text-xs text-slate-500 dark:text-slate-400" dir="ltr">
-                {material.itemCode}
-              </span>
+              <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                <span className="font-mono text-xs font-bold text-sky-600 dark:text-sky-400" dir="ltr">
+                  {material.itemCode}
+                </span>
+                {(() => {
+                  const parsed = parseSinomaItemCode(material.itemCode);
+                  if (!parsed) return null;
+                  return (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 font-semibold border border-sky-200 dark:border-sky-800">
+                      [{parsed.mainCode}] {parsed.mainCategory?.name} • [{parsed.subCode}] {parsed.subCategory?.name} • [{parsed.unitCode}] {parsed.unit?.abbreviation}
+                    </span>
+                  );
+                })()}
+              </div>
             </div>
             <button
               onClick={onClose}
