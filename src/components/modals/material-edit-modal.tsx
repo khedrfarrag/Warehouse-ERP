@@ -5,9 +5,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
-import { X, Loader2, Upload, Image as ImageIcon, Trash2 } from "lucide-react";
+import { X, Loader2, Upload, Image as ImageIcon, Trash2, AlertTriangle } from "lucide-react";
 import { UpdateMaterialSchema, UpdateMaterialInput } from "@/lib/schemas/material";
-import { updateMaterial } from "@/server/actions/materials";
+import { updateMaterial, checkMaterialDuplicate } from "@/server/actions/materials";
 import { getCategories } from "@/server/actions/categories";
 import { getUnitsOfMeasure } from "@/server/actions/units";
 import { parseSinomaItemCode } from "@/lib/sinoma-coding-system";
@@ -34,6 +34,8 @@ export function MaterialEditModal({
   const [categories, setCategories] = useState<any[]>([]);
   const [units, setUnits] = useState<any[]>([]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [nameDuplicateError, setNameDuplicateError] = useState<string | null>(null);
+  const [checkingName, setCheckingName] = useState(false);
 
   const {
     register,
@@ -99,16 +101,49 @@ export function MaterialEditModal({
     setValue("imageUrl", null);
   };
 
+  const handleNameCheck = async (nameVal: string) => {
+    if (!material) return;
+    const trimmed = nameVal.trim();
+    if (trimmed.length < 2) {
+      setNameDuplicateError(null);
+      return;
+    }
+    setCheckingName(true);
+    try {
+      const res = await checkMaterialDuplicate({
+        name: trimmed,
+        excludeId: material.id,
+      });
+      if (res.success && res.nameExists && res.nameDuplicateItem) {
+        setNameDuplicateError(
+          `يوجد مادة أخرى مسجلة بالفعل بهذا الاسم "${res.nameDuplicateItem.name}" (كود: ${res.nameDuplicateItem.itemCode}).`
+        );
+      } else {
+        setNameDuplicateError(null);
+      }
+    } finally {
+      setCheckingName(false);
+    }
+  };
+
   const onSubmit = async (data: UpdateMaterialInput) => {
     if (!material) return;
+    if (nameDuplicateError) {
+      toast.error("يرجى اختيار اسم غير مكرر للمادة");
+      return;
+    }
     setLoading(true);
     try {
       const res = await updateMaterial(material.id, data);
       if (res.success) {
         toast.success(t.materials.editSuccess);
+        setNameDuplicateError(null);
         onClose();
         if (onSuccess) onSuccess();
       } else {
+        if (res.field === "name") {
+          setNameDuplicateError(res.error || "اسم المادة مكرر بالفعل");
+        }
         toast.error(res.error || "Failed to update material");
       }
     } catch (err: any) {
@@ -173,12 +208,39 @@ export function MaterialEditModal({
           <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4 overflow-y-auto flex-1">
             {/* Name */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                {t.materials.name} <span className="text-rose-500">*</span>
-              </label>
-              <Input {...register("name")} placeholder={t.materials.name} />
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  {t.materials.name} <span className="text-rose-500">*</span>
+                </label>
+                {checkingName && (
+                  <span className="flex items-center gap-1 text-[11px] text-sky-600 dark:text-sky-400 font-medium">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    فحص عدم التكرار...
+                  </span>
+                )}
+              </div>
+              <Input
+                {...register("name", {
+                  onBlur: (e) => handleNameCheck(e.target.value),
+                  onChange: () => {
+                    if (nameDuplicateError) setNameDuplicateError(null);
+                  },
+                })}
+                placeholder={t.materials.name}
+                className={
+                  nameDuplicateError
+                    ? "border-rose-500 focus-visible:ring-rose-500 bg-rose-50/20 dark:bg-rose-950/20"
+                    : ""
+                }
+              />
               {errors.name && (
                 <p className="text-xs text-rose-500 mt-1">{errors.name.message}</p>
+              )}
+              {nameDuplicateError && (
+                <div className="mt-1.5 flex items-start gap-1.5 p-2 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900/60 text-xs font-semibold text-rose-600 dark:text-rose-400">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-rose-500" />
+                  <span>{nameDuplicateError}</span>
+                </div>
               )}
             </div>
 

@@ -159,18 +159,105 @@ export async function generateNextItemCode(params: {
   }
 }
 
+export async function checkMaterialDuplicate(params: {
+  name?: string;
+  itemCode?: string;
+  excludeId?: string;
+}): Promise<{
+  success: boolean;
+  error?: string;
+  nameExists: boolean;
+  nameDuplicateItem: { id: string; itemCode: string; name: string } | null;
+  codeExists: boolean;
+  codeDuplicateItem: { id: string; itemCode: string; name: string } | null;
+}> {
+  try {
+    const result = {
+      nameExists: false,
+      nameDuplicateItem: null as { id: string; itemCode: string; name: string } | null,
+      codeExists: false,
+      codeDuplicateItem: null as { id: string; itemCode: string; name: string } | null,
+    };
+
+    if (params.name && params.name.trim().length >= 2) {
+      const trimmed = params.name.trim();
+      const existingName = await prisma.material.findFirst({
+        where: {
+          ...(params.excludeId ? { id: { not: params.excludeId } } : {}),
+          name: { equals: trimmed, mode: "insensitive" },
+        },
+        select: { id: true, itemCode: true, name: true },
+      });
+      if (existingName) {
+        result.nameExists = true;
+        result.nameDuplicateItem = existingName;
+      }
+    }
+
+    if (params.itemCode && params.itemCode.trim().length >= 2) {
+      const normalizedCode = params.itemCode.trim().toUpperCase();
+      const existingCode = await prisma.material.findFirst({
+        where: {
+          ...(params.excludeId ? { id: { not: params.excludeId } } : {}),
+          itemCode: { equals: normalizedCode, mode: "insensitive" },
+        },
+        select: { id: true, itemCode: true, name: true },
+      });
+      if (existingCode) {
+        result.codeExists = true;
+        result.codeDuplicateItem = existingCode;
+      }
+    }
+
+    return { success: true, ...result };
+  } catch (err: any) {
+    console.error("checkMaterialDuplicate error:", err);
+    return {
+      success: false,
+      error: err.message,
+      nameExists: false,
+      nameDuplicateItem: null,
+      codeExists: false,
+      codeDuplicateItem: null,
+    };
+  }
+}
+
 export async function createMaterial(input: MaterialInput) {
   try {
     const validated = MaterialSchema.parse(input);
 
-    const existing = await prisma.material.findUnique({
-      where: { itemCode: validated.itemCode.toUpperCase() },
+    // 1. Check duplicate Name FIRST (case-insensitive & trimmed)
+    const trimmedName = validated.name.trim();
+    const existingByName = await prisma.material.findFirst({
+      where: {
+        name: { equals: trimmedName, mode: "insensitive" },
+      },
+      select: { id: true, itemCode: true, name: true },
     });
 
-    if (existing) {
+    if (existingByName) {
       return {
         success: false,
-        error: `Material with item code "${validated.itemCode}" already exists.`,
+        error: `يوجد مادة مسجلة بالفعل بهذا الاسم "${existingByName.name}" (كود المادة: ${existingByName.itemCode}). لا يمكن تكرار اسم المادة.`,
+        field: "name",
+      };
+    }
+
+    // 2. Check duplicate Item Code
+    const normalizedCode = validated.itemCode.trim().toUpperCase();
+    const existingByCode = await prisma.material.findFirst({
+      where: {
+        itemCode: { equals: normalizedCode, mode: "insensitive" },
+      },
+      select: { id: true, itemCode: true, name: true },
+    });
+
+    if (existingByCode) {
+      return {
+        success: false,
+        error: `يوجد مادة مسجلة بالفعل بهذا الكود "${normalizedCode}" (اسم المادة: ${existingByCode.name}). لا يمكن تكرار كود المادة.`,
+        field: "itemCode",
       };
     }
 
@@ -212,6 +299,26 @@ export async function createMaterial(input: MaterialInput) {
 export async function updateMaterial(id: string, input: UpdateMaterialInput) {
   try {
     const validated = UpdateMaterialSchema.parse(input);
+
+    // Check duplicate Name on update if name is provided
+    if (validated.name) {
+      const trimmedName = validated.name.trim();
+      const existingByName = await prisma.material.findFirst({
+        where: {
+          id: { not: id },
+          name: { equals: trimmedName, mode: "insensitive" },
+        },
+        select: { id: true, itemCode: true, name: true },
+      });
+
+      if (existingByName) {
+        return {
+          success: false,
+          error: `يوجد مادة أخرى مسجلة بالفعل بهذا الاسم "${existingByName.name}" (كود المادة: ${existingByName.itemCode}).`,
+          field: "name",
+        };
+      }
+    }
 
     let categoryName: string | undefined;
     let unitAbbr: string | undefined;

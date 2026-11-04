@@ -5,9 +5,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
-import { X, Plus, Loader2, Sparkles, Upload, Image as ImageIcon } from "lucide-react";
+import { X, Plus, Loader2, Sparkles, Upload, Image as ImageIcon, AlertTriangle } from "lucide-react";
 import { MaterialSchema, MaterialInput } from "@/lib/schemas/material";
-import { createMaterial, generateNextItemCode } from "@/server/actions/materials";
+import { createMaterial, generateNextItemCode, checkMaterialDuplicate } from "@/server/actions/materials";
 import { getCategories } from "@/server/actions/categories";
 import { getUnitsOfMeasure } from "@/server/actions/units";
 import {
@@ -36,6 +36,8 @@ export function MaterialModal({ onSuccess }: MaterialFormProps) {
   const [subCategoryCode, setSubCategoryCode] = useState("1");
   const [generatedSerial, setGeneratedSerial] = useState("000001");
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [nameDuplicateError, setNameDuplicateError] = useState<string | null>(null);
+  const [checkingName, setCheckingName] = useState(false);
 
   const {
     register,
@@ -169,7 +171,33 @@ export function MaterialModal({ onSuccess }: MaterialFormProps) {
     }
   };
 
+  const handleNameCheck = async (nameVal: string) => {
+    const trimmed = nameVal.trim();
+    if (trimmed.length < 2) {
+      setNameDuplicateError(null);
+      return;
+    }
+    setCheckingName(true);
+    try {
+      const res = await checkMaterialDuplicate({ name: trimmed });
+      if (res.success && res.nameExists && res.nameDuplicateItem) {
+        setNameDuplicateError(
+          `يوجد مادة مسجلة بالفعل بهذا الاسم "${res.nameDuplicateItem.name}" (كود المادة: ${res.nameDuplicateItem.itemCode}). يرجى اختيار اسم غير مكرر.`
+        );
+      } else {
+        setNameDuplicateError(null);
+      }
+    } finally {
+      setCheckingName(false);
+    }
+  };
+
   const onSubmit = async (data: MaterialInput) => {
+    if (nameDuplicateError) {
+      toast.error("يرجى تصحيح اسم المادة: الاسم مسجل بالفعل لمادة أخرى");
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await createMaterial(data);
@@ -179,9 +207,13 @@ export function MaterialModal({ onSuccess }: MaterialFormProps) {
         );
         reset();
         setPreviewImage(null);
+        setNameDuplicateError(null);
         setIsOpen(false);
         if (onSuccess) onSuccess();
       } else {
+        if (res.field === "name") {
+          setNameDuplicateError(res.error || "اسم المادة مكرر بالفعل");
+        }
         toast.error(res.error || "Failed to create material");
       }
     } catch (err: any) {
@@ -385,15 +417,39 @@ export function MaterialModal({ onSuccess }: MaterialFormProps) {
 
                 {/* Material Details */}
                 <div>
-                  <label className="block text-xs font-semibold uppercase text-slate-600 dark:text-slate-300 mb-1">
-                    {t.materials.name} *
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold uppercase text-slate-600 dark:text-slate-300">
+                      {t.materials.name} *
+                    </label>
+                    {checkingName && (
+                      <span className="flex items-center gap-1 text-[11px] text-sky-600 dark:text-sky-400 font-medium">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        فحص عدم التكرار...
+                      </span>
+                    )}
+                  </div>
                   <Input
-                    {...register("name")}
+                    {...register("name", {
+                      onBlur: (e) => handleNameCheck(e.target.value),
+                      onChange: () => {
+                        if (nameDuplicateError) setNameDuplicateError(null);
+                      },
+                    })}
                     placeholder="e.g. Deformed High-Tensile Steel Rebar 16mm"
+                    className={
+                      nameDuplicateError
+                        ? "border-rose-500 focus-visible:ring-rose-500 bg-rose-50/20 dark:bg-rose-950/20"
+                        : ""
+                    }
                   />
                   {errors.name && (
                     <p className="text-xs text-rose-500 mt-1">{errors.name.message}</p>
+                  )}
+                  {nameDuplicateError && (
+                    <div className="mt-1.5 flex items-start gap-1.5 p-2 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900/60 text-xs font-semibold text-rose-600 dark:text-rose-400">
+                      <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-rose-500" />
+                      <span>{nameDuplicateError}</span>
+                    </div>
                   )}
                 </div>
 
